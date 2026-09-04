@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: spark-system
+
+resources:
+  - ../base
+  # Drop this line and supply your own spark-db Secret to use an external
+  # database instead.
+  - postgres.yaml
+  - spark.yaml
+
+secretGenerator:
+  # Both keys are consumed: Postgres initialises with the password, the control
+  # plane connects with the URL. Replace this generator with your own Secret
+  # named spark-db to point at a database you already run.
+  - name: spark-db
+    literals:
+      - POSTGRES_PASSWORD=spark-change-me
+      - DATABASE_URL=postgres://spark:spark-change-me@postgres.spark-system.svc.cluster.local:5432/spark
+
+generatorOptions:
+  # A hashed name would orphan the Secret the StatefulSet already mounted.
+  disableNameSuffixHash: true

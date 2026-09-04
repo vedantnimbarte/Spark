@@ -1,0 +1,65 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT d.id, d.app_id, d.commit_sha, d.status, d.image_ref,\n                  d.started_at, d.finished_at, d.created_at\n           FROM deployments d\n           JOIN applications a ON a.id = d.app_id\n           WHERE d.id = $1 AND a.owner_id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "app_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "commit_sha",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "image_ref",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "started_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "finished_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "f07634266f593d1703c1c88f142bd36839b314055872cf1d84080f04a4eb4000"
+}

@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE deployments\n           SET status = $2, image_ref = COALESCE($3, image_ref), finished_at = now()\n           WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9b90e2ceb775f1b5edfb1371a527b15c9062cf45a549bb1b13088dbc72dc7c7e"
+}

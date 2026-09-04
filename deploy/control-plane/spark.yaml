@@ -1,0 +1,167 @@
+# The control plane, running on the cluster it manages.
+#
+# The API uses the spark-controller ServiceAccount from the base kustomization,
+# so kube-rs picks up in-cluster credentials automatically and the permission
+# set is the restricted one defined there rather than a developer's kubeconfig.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-api
+  namespace: spark-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spark-api
+  template:
+    metadata:
+      labels:
+        app: spark-api
+    spec:
+      serviceAccountName: spark-controller
+      containers:
+        - name: api
+          image: localhost:30500/spark/api:latest
+          # The image is loaded onto the node by deploy/build-images.sh rather
+          # than pulled; see that script for why.
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: spark-db
+                  key: DATABASE_URL
+            # Hosts generated for applications. Change this to your own domain
+            # and point a wildcard record at the cluster.
+            - name: APP_BASE_DOMAIN
+              value: localhost
+            - name: REGISTRY_URL
+              value: localhost:30500
+            - name: REGISTRY_INSECURE
+              value: "true"
+            # spark-selfsigned locally; spark-letsencrypt on a real cluster.
+            - name: CLUSTER_ISSUER
+              value: spark-selfsigned
+            # The dashboard is served over HTTPS in-cluster.
+            - name: COOKIE_SECURE
+              value: "true"
+            - name: RUST_LOG
+              value: spark_api=info,tower_http=warn,info
+          readinessProbe:
+            httpGet:
+              # Also exercises the database connection.
+              path: /health
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-api
+  namespace: spark-system
+spec:
+  selector:
+    app: spark-api
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-web
+  namespace: spark-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spark-web
+  template:
+    metadata:
+      labels:
+        app: spark-web
+    spec:
+      containers:
+        - name: web
+          image: localhost:30500/spark/web:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            # Only used if a request reaches Next rather than being routed to
+            # the API by the Ingress; kept so the dashboard works either way.
+            - name: SPARK_API_ORIGIN
+              value: http://spark-api:8080
+          readinessProbe:
+            httpGet:
+              path: /login
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-web
+  namespace: spark-system
+spec:
+  selector:
+    app: spark-web
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+---
+# Spark routed through its own ingress controller, with a certificate from its
+# own issuer. `/api` is matched ahead of `/` because Traefik orders rules by
+# specificity, so API calls never reach the Next.js server.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: spark
+  namespace: spark-system
+  annotations:
+    cert-manager.io/cluster-issuer: spark-selfsigned
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts: [spark.localhost]
+      secretName: spark-tls
+  rules:
+    - host: spark.localhost
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: spark-api
+                port:
+                  number: 8080
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: spark-web
+                port:
+                  number: 3000

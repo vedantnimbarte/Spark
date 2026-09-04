@@ -1,0 +1,50 @@
+# The ServiceAccount the control plane uses once it runs inside the cluster.
+# During host development the API uses the developer's kubeconfig; this exists
+# so the permission set is defined and reviewable from the start.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: spark-controller
+  namespace: spark-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: spark-controller
+rules:
+  # Each application gets its own namespace. patch is required because every
+  # object is written by server-side apply, which is a PATCH request.
+  - apiGroups: [""]
+    resources: [namespaces]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [""]
+    resources: [secrets, services]
+    verbs: [get, list, watch, create, update, patch, delete]
+  # Pod logs back the deployment log stream.
+  - apiGroups: [""]
+    resources: [pods, pods/log]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [batch]
+    resources: [jobs]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [networking.k8s.io]
+    resources: [ingresses, networkpolicies]
+    verbs: [get, list, watch, create, update, patch, delete]
+  # Deliberately absent: cluster-scoped RBAC, nodes, and any write to
+  # resources in spark-system itself.
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: spark-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: spark-controller
+subjects:
+  - kind: ServiceAccount
+    name: spark-controller
+    namespace: spark-system

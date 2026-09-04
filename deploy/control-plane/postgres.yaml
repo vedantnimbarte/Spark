@@ -1,0 +1,80 @@
+# Default database for a self-contained install.
+#
+# Swap it out by supplying your own `spark-db` Secret with a DATABASE_URL key
+# and removing this file from the kustomization — the control plane only ever
+# reads the Secret, so nothing else changes.
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: spark-system
+spec:
+  # Headless: the StatefulSet gives a stable name and there is nothing to load
+  # balance across.
+  clusterIP: None
+  selector:
+    app: postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: spark-system
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          env:
+            - name: POSTGRES_USER
+              value: spark
+            - name: POSTGRES_DB
+              value: spark
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: spark-db
+                  key: POSTGRES_PASSWORD
+            # The image only initialises a fresh cluster when this subdirectory
+            # is empty, which a mounted volume root never is.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports:
+            - name: postgres
+              containerPort: 5432
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "spark", "-d", "spark"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: 10Gi

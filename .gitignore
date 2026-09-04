@@ -1,0 +1,13 @@
+# Rust
+/api/target
+# Node
+node_modules/
+/web/.next
+/web/out
+# Env
+.env
+.env.local
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE domains SET ssl_status = $2 WHERE app_id = $1 AND ssl_status IS DISTINCT FROM $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f4291aa05fcf4a5530408ab382f8b82dfa444240e65021935cac1d20c6e475e5"
+}

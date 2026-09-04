@@ -1,0 +1,88 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, owner_id, name, git_repo, git_branch, build_type, dockerfile_path,\n                  container_port, cpu_limit, memory_limit, webhook_secret, created_at\n           FROM applications WHERE owner_id = $1 ORDER BY created_at DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "owner_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "git_repo",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "git_branch",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "build_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "dockerfile_path",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "container_port",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "cpu_limit",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "memory_limit",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "webhook_secret",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "c1225f6efd0c016912fb6b8f4baf79674b91571eee6377c204466e01ad3e3d45"
+}

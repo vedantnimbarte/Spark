@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM app_env_keys WHERE app_id = $1 AND key = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0b0f0d7fbf419986cd0c87ffdff2bc719390d3497d1fe6d4fa18d035d9bbcb77"
+}

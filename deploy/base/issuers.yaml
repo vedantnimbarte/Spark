@@ -1,0 +1,50 @@
+# Two ClusterIssuers. Which one an application's Ingress references is a
+# control-plane config value (CLUSTER_ISSUER), not a per-host decision:
+# cert-manager's issuer annotation applies to the whole Ingress, and Let's
+# Encrypt cannot sign a .localhost name, so one issuer has to cover every host
+# on a given deployment.
+---
+# Local development. Self-signed, so no ACME challenge is needed and TLS can be
+# exercised end to end on a machine with no public DNS.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: spark-selfsigned
+spec:
+  selfSigned: {}
+---
+# Real clusters. HTTP-01 requires the domain to resolve to this cluster and
+# port 80 to be reachable from the internet.
+#
+# Set a contact address before using this: ACME registration requires one.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: spark-letsencrypt
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: change-me@example.com
+    privateKeySecretRef:
+      name: spark-letsencrypt-account
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: traefik
+---
+# Same as above against the staging endpoint, which has far higher rate limits.
+# Worth pointing CLUSTER_ISSUER here while first getting DNS and firewall right.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: spark-letsencrypt-staging
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: change-me@example.com
+    privateKeySecretRef:
+      name: spark-letsencrypt-staging-account
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: traefik

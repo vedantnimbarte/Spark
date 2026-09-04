@@ -1,0 +1,94 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE applications SET\n             git_branch      = COALESCE($3, git_branch),\n             dockerfile_path = COALESCE($4, dockerfile_path),\n             container_port  = COALESCE($5, container_port),\n             cpu_limit       = COALESCE($6, cpu_limit),\n             memory_limit    = COALESCE($7, memory_limit)\n           WHERE id = $1 AND owner_id = $2\n           RETURNING id, owner_id, name, git_repo, git_branch, build_type, dockerfile_path,\n                     container_port, cpu_limit, memory_limit, webhook_secret, created_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "owner_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "git_repo",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "git_branch",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "build_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "dockerfile_path",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "container_port",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "cpu_limit",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "memory_limit",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "webhook_secret",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Int4",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "be896863d0bfa30931b3e3d09a4ad6b7e3b8ef8251db9e6adbc7d44d0d1ca9da"
+}

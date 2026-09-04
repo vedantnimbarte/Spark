@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: spark-system
+  labels:
+    # Application NetworkPolicies deny egress to anything carrying this label,
+    # which is the control-plane / data-plane boundary.
+    spark.io/control-plane: "true"

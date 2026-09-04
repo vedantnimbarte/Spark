@@ -1,0 +1,47 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO domains (app_id, domain_name) VALUES ($1, $2)\n           RETURNING id, app_id, domain_name, ssl_status, created_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "app_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "domain_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "ssl_status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "2c69d3422cc08e00c68e864d14aa39bc9a252454e53657330c0d37d64a0ba5e7"
+}
