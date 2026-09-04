@@ -1,0 +1,47 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n               s.day AS \"day!\",\n               count(d.id) FILTER (WHERE d.status = 'deployed') AS \"succeeded!\",\n               count(d.id) FILTER (WHERE d.status = 'failed') AS \"failed!\",\n               count(d.id) AS \"total!\",\n               percentile_cont(0.5) WITHIN GROUP (\n                   ORDER BY extract(epoch FROM d.finished_at - d.started_at)::float8\n               ) FILTER (\n                   WHERE d.started_at IS NOT NULL AND d.finished_at IS NOT NULL\n               ) AS \"median_build_seconds\"\n           FROM generate_series(\n                    date_trunc('day', now()) - make_interval(days => $2 - 1),\n                    date_trunc('day', now()),\n                    '1 day'\n                ) AS s(day)\n           LEFT JOIN deployments d\n             ON d.created_at >= s.day\n            AND d.created_at < s.day + interval '1 day'\n            AND d.app_id IN (SELECT id FROM applications WHERE owner_id = $1)\n           GROUP BY s.day\n           ORDER BY s.day",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "day!",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 1,
+        "name": "succeeded!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "failed!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "total!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "median_build_seconds",
+        "type_info": "Float8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "da0c39854a761035afa6d846b6fc6ca86df23e3cd1de0ae0cb94bbc68163572a"
+}

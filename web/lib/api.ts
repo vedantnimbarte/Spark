@@ -80,6 +80,60 @@ export interface PodStatus {
   message: string | null;
 }
 
+export interface SessionInfo {
+  id: string;
+  created_at: string;
+  expires_at: string;
+  /** The session making the request. It is never offered for revocation. */
+  current: boolean;
+}
+
+export interface StatsSummary {
+  total: number;
+  succeeded: number;
+  failed: number;
+  in_flight: number;
+  median_build_seconds: number | null;
+  p95_build_seconds: number | null;
+}
+
+export interface DayBucket {
+  day: string;
+  succeeded: number;
+  failed: number;
+  total: number;
+  median_build_seconds: number | null;
+}
+
+export interface ProjectRollup {
+  app_id: string;
+  name: string;
+  deploys: number;
+  succeeded: number;
+  failed: number;
+  median_build_seconds: number | null;
+  last_deploy_at: string | null;
+}
+
+export interface RecentDeployment {
+  id: string;
+  app_id: string;
+  app_name: string;
+  commit_sha: string;
+  status: DeploymentStatus;
+  rolled_back: boolean;
+  duration_seconds: number | null;
+  created_at: string;
+}
+
+export interface Stats {
+  days: number;
+  summary: StatsSummary;
+  daily: DayBucket[];
+  projects: ProjectRollup[];
+  recent: RecentDeployment[];
+}
+
 /** An API error carrying the status, so callers can tell 401 from 500. */
 export class ApiError extends Error {
   readonly status: number;
@@ -225,6 +279,19 @@ export const api = {
   webhook: (id: string) => request<WebhookConfig>(`/apps/${id}/webhook`),
 
   health: (id: string) => request<AppHealth>(`/apps/${id}/health`),
+
+  stats: (days: number) => request<Stats>(`/stats?days=${days}`),
+
+  listSessions: () => request<SessionInfo[]>("/auth/sessions"),
+
+  revokeSession: (id: string) =>
+    request<void>(`/auth/sessions/${id}`, { method: "DELETE" }),
+
+  changePassword: (current_password: string, new_password: string) =>
+    request<{ sessions_revoked: number }>("/auth/password", {
+      method: "POST",
+      body: JSON.stringify({ current_password, new_password }),
+    }),
 };
 
 /** Short relative time, e.g. "4m ago". */
@@ -273,4 +340,38 @@ export function shortSha(sha: string): string {
   // A branch name was recorded when the commit could not be resolved; showing
   // the first seven characters of that would be meaningless.
   return /^[0-9a-f]{40}$/.test(sha) ? sha.slice(0, 7) : sha;
+}
+
+/**
+ * A build duration at the precision a person actually reads it: sub-minute
+ * builds in seconds, longer ones in minutes, because "94s" and "1m 34s" are
+ * the same fact but only one of them scans at a glance.
+ */
+export function formatDuration(seconds: number | null): string {
+  if (seconds === null) return "--";
+  // Exactly zero is a real reading on a chart axis; anything between is not.
+  if (seconds === 0) return "0s";
+  if (seconds < 1) return "<1s";
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const minutes = Math.floor(seconds / 60);
+  const rest = Math.round(seconds % 60);
+  if (minutes < 60) return rest === 0 ? `${minutes}m` : `${minutes}m ${rest}s`;
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
+
+/** Day label for a chart axis, e.g. "4 Sep". */
+export function formatDay(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+  });
+}
+
+/** Whole percent, or null when the denominator is zero and a rate is a lie. */
+export function successRate(
+  succeeded: number,
+  failed: number,
+): number | null {
+  const finished = succeeded + failed;
+  return finished === 0 ? null : Math.round((succeeded / finished) * 100);
 }

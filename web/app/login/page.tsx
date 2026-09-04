@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { SparkIcon } from "@/components/icons";
-import { Button, ErrorText, Input, Label } from "@/components/ui";
+import { Button, ErrorText, Field, Input } from "@/components/ui";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -27,39 +27,56 @@ export default function LoginPage() {
     submit.error instanceof ApiError
       ? submit.error.message
       : submit.error
-        ? "Something went wrong"
+        ? "Could not reach the control plane"
         : null;
 
   return (
     <main className="flex min-h-screen items-center justify-center px-4">
+      {/* The rule under the mark is the only ornament on this page: it gives
+          the form a top edge without boxing it. */}
       <div className="w-full max-w-sm">
-        <div className="mb-8 flex items-center gap-2">
+        <div className="border-line flex items-center gap-2.5 border-b pb-5">
           <SparkIcon className="text-accent size-5" />
-          <h1 className="text-lg font-semibold tracking-tight">Spark</h1>
+          <h1 className="text-[15px] font-semibold tracking-tight">Spark</h1>
+          <span className="text-faint ml-auto text-xs">Control plane</span>
         </div>
 
+        <h2 className="mt-8 text-[22px] leading-tight font-semibold tracking-tight">
+          {mode === "login" ? "Sign in" : "Create the first account"}
+        </h2>
+        <p className="text-muted mt-1.5 text-[13px]">
+          {mode === "login"
+            ? "Deploy and watch the applications on your cluster."
+            : "This account owns the instance. Signup closes once it exists."}
+        </p>
+
         <form
-          className="space-y-4"
-          onSubmit={(e) => {
-            e.preventDefault();
+          className="mt-7 space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
             submit.mutate();
           }}
         >
-          <div className="space-y-1.5">
-            <Label>Email</Label>
+          <Field label="Email" htmlFor="email">
             <Input
+              id="email"
               type="email"
               autoComplete="email"
               required
+              autoFocus
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(event) => setEmail(event.target.value)}
               placeholder="you@example.com"
             />
-          </div>
+          </Field>
 
-          <div className="space-y-1.5">
-            <Label>Password</Label>
+          <Field
+            label="Password"
+            htmlFor="password"
+            hint={mode === "signup" ? "At least 12 characters" : undefined}
+          >
             <Input
+              id="password"
               type="password"
               autoComplete={
                 mode === "login" ? "current-password" : "new-password"
@@ -67,12 +84,10 @@ export default function LoginPage() {
               required
               minLength={mode === "signup" ? 12 : undefined}
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder={
-                mode === "signup" ? "at least 12 characters" : "••••••••"
-              }
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="••••••••••••"
             />
-          </div>
+          </Field>
 
           {error && <ErrorText>{error}</ErrorText>}
 
@@ -83,7 +98,9 @@ export default function LoginPage() {
             disabled={submit.isPending}
           >
             {submit.isPending
-              ? "…"
+              ? mode === "login"
+                ? "Signing in…"
+                : "Creating…"
               : mode === "login"
                 ? "Sign in"
                 : "Create account"}

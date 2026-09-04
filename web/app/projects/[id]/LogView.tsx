@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ActivityLine } from "@/components/ui";
 
 /**
  * Follows a deployment's build log over server-sent events.
  *
- * EventSource is used rather than a polling fetch because it reconnects on its
- * own and the endpoint is one-directional.
+ * EventSource rather than a polling fetch because it reconnects on its own and
+ * the endpoint is one-directional.
  */
 export function LogView({
   appId,
@@ -24,9 +25,7 @@ export function LogView({
     setLines([]);
     setDone(false);
 
-    const source = new EventSource(
-      `/api/v1/deployments/${deploymentId}/logs`,
-    );
+    const source = new EventSource(`/api/v1/deployments/${deploymentId}/logs`);
 
     source.onmessage = (event) => {
       setLines((current) => [...current, event.data as string]);
@@ -55,19 +54,24 @@ export function LogView({
   }, [lines]);
 
   return (
-    <div className="flex h-[28rem] flex-col">
-      <div className="border-border flex items-center justify-between border-b px-4 py-2">
-        <span className="text-muted text-xs font-medium">Build log</span>
-        <span className="text-faint text-xs">
-          {done ? "finished" : "streaming…"}
+    <div className="bg-sunken flex h-[28rem] flex-col">
+      <div className="border-line flex items-center justify-between border-b px-4 py-2.5">
+        <span className="text-[13px] font-medium">Build log</span>
+        <span className="tnum text-faint font-mono text-xs">
+          {done
+            ? `${lines.length} line${lines.length === 1 ? "" : "s"}`
+            : "streaming"}
         </span>
       </div>
 
+      {/* The sweep marks a build still producing output; it is the only thing
+          on this panel that moves. */}
+      {done ? <div className="h-px" aria-hidden /> : <ActivityLine />}
+
       <div
-        onScroll={(e) => {
-          const el = e.currentTarget;
-          pinned.current =
-            el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+        onScroll={(event) => {
+          const el = event.currentTarget;
+          pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
         }}
         className="flex-1 overflow-auto px-4 py-3"
       >
@@ -76,7 +80,7 @@ export function LogView({
             {done ? "No output." : "Waiting for output…"}
           </p>
         ) : (
-          <pre className="text-fg/80 font-mono text-xs leading-relaxed whitespace-pre-wrap">
+          <pre className="text-fg/85 font-mono text-xs leading-relaxed whitespace-pre-wrap">
             {lines.join("\n")}
           </pre>
         )}

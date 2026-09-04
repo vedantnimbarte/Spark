@@ -1,0 +1,53 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n               count(*) AS \"total!\",\n               count(*) FILTER (WHERE status = 'deployed') AS \"succeeded!\",\n               count(*) FILTER (WHERE status = 'failed') AS \"failed!\",\n               count(*) FILTER (\n                   WHERE status IN ('pending', 'building', 'deploying')\n               ) AS \"in_flight!\",\n               percentile_cont(0.5) WITHIN GROUP (\n                   ORDER BY extract(epoch FROM finished_at - started_at)::float8\n               ) FILTER (\n                   WHERE started_at IS NOT NULL AND finished_at IS NOT NULL\n               ) AS \"median_build_seconds\",\n               percentile_cont(0.95) WITHIN GROUP (\n                   ORDER BY extract(epoch FROM finished_at - started_at)::float8\n               ) FILTER (\n                   WHERE started_at IS NOT NULL AND finished_at IS NOT NULL\n               ) AS \"p95_build_seconds\"\n           FROM deployments\n           WHERE app_id IN (SELECT id FROM applications WHERE owner_id = $1)\n             AND created_at >= now() - make_interval(days => $2)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "total!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "succeeded!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "failed!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "in_flight!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "median_build_seconds",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 5,
+        "name": "p95_build_seconds",
+        "type_info": "Float8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "4a84be49400105cf939ec40961d3d5e05f5469cafd46ea24ca944dac472251aa"
+}

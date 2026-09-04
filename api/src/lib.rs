@@ -23,6 +23,13 @@ pub fn router(state: SharedState) -> Router {
         .route("/auth/login", post(handlers::auth::login))
         .route("/auth/logout", post(handlers::auth::logout))
         .route("/auth/me", get(handlers::auth::me))
+        .route("/auth/password", post(handlers::auth::change_password))
+        .route("/auth/sessions", get(handlers::auth::list_sessions))
+        .route(
+            "/auth/sessions/{id}",
+            axum::routing::delete(handlers::auth::revoke_session),
+        )
+        .route("/stats", get(handlers::stats::overview))
         .route(
             "/apps",
             get(handlers::apps::list).post(handlers::apps::create),

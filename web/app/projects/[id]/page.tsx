@@ -4,9 +4,24 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
-import { api, ApiError, formatBytes, formatCpu } from "@/lib/api";
+import {
+  api,
+  ApiError,
+  formatBytes,
+  formatCpu,
+  shortSha,
+  timeAgo,
+} from "@/lib/api";
 import { BranchIcon, ExternalIcon } from "@/components/icons";
-import { Button, Card, StatusBadge } from "@/components/ui";
+import {
+  ActivityLine,
+  Button,
+  Detail,
+  isInFlight,
+  Panel,
+  Skeleton,
+  StatusPill,
+} from "@/components/ui";
 import { DeploymentsTab } from "./DeploymentsTab";
 import { DomainsTab } from "./DomainsTab";
 import { EnvTab } from "./EnvTab";
@@ -46,9 +61,17 @@ export default function ProjectPage() {
 
   if (app.error instanceof ApiError && app.error.status === 404) {
     return (
-      <main className="px-8 py-10">
-        <p className="text-muted text-sm">That project does not exist.</p>
-        <Link href="/projects" className="text-accent mt-2 block text-sm">
+      <main className="mx-auto max-w-5xl px-8 py-10">
+        <h1 className="text-[22px] font-semibold tracking-tight">
+          Project not found
+        </h1>
+        <p className="text-muted mt-2 text-[13px]">
+          It may have been deleted, or the link may be wrong.
+        </p>
+        <Link
+          href="/projects"
+          className="text-accent mt-4 inline-block text-[13px]"
+        >
           Back to projects
         </Link>
       </main>
@@ -56,12 +79,19 @@ export default function ProjectPage() {
   }
 
   if (!app.data) {
-    return <p className="text-faint px-8 py-10 text-sm">Loading…</p>;
+    return (
+      <main className="mx-auto max-w-5xl space-y-4 px-8 py-10">
+        <Skeleton className="h-7 w-48" />
+        <Skeleton className="h-20 w-full" />
+      </main>
+    );
   }
 
   const last = deployments.data?.[0];
   const url = `http://${app.data.name}.localhost`;
-  const live = health.data?.ready ?? false;
+  const running = health.data?.ready ?? false;
+  const deploying = last ? isInFlight(last.status) : false;
+  const failedPods = health.data?.pods.filter((pod) => !pod.ready) ?? [];
 
   return (
     <main className="mx-auto max-w-5xl px-8 py-10">
@@ -69,24 +99,28 @@ export default function ProjectPage() {
         href="/projects"
         className="text-faint hover:text-muted text-xs transition-colors"
       >
-        ← Projects
+        Projects
       </Link>
 
       <header className="mt-3 flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <div className="flex items-center gap-3">
-            <h1 className="truncate text-xl font-semibold tracking-tight">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="truncate text-[22px] leading-tight font-semibold tracking-tight">
               {app.data.name}
             </h1>
-            {last && <StatusBadge status={last.status} />}
+            {last && <StatusPill status={last.status} />}
           </div>
 
-          <div className="text-faint mt-2 flex flex-wrap items-center gap-4 text-xs">
+          <div className="text-faint mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
             <span className="flex items-center gap-1.5">
               <BranchIcon className="size-3.5" />
               {app.data.git_branch}
             </span>
-            <span className="truncate">{app.data.git_repo}</span>
+            {last && (
+              <span className="font-mono">{shortSha(last.commit_sha)}</span>
+            )}
+            {last && <span>deployed {timeAgo(last.created_at)}</span>}
+            <span className="max-w-full truncate">{app.data.git_repo}</span>
           </div>
         </div>
 
@@ -100,67 +134,129 @@ export default function ProjectPage() {
           <Button
             variant="primary"
             onClick={() => deploy.mutate()}
-            disabled={deploy.isPending}
+            disabled={deploy.isPending || deploying}
           >
-            {deploy.isPending ? "Queuing…" : "Deploy"}
+            {deploy.isPending
+              ? "Queuing…"
+              : deploying
+                ? "Deploy running"
+                : "Deploy"}
           </Button>
         </div>
       </header>
 
-      {/* Live health, straight from the cluster. */}
-      <Card className="mt-6 flex flex-wrap items-center gap-x-8 gap-y-3 px-5 py-4">
-        <Stat
-          label="Status"
-          value={
-            <span className={live ? "text-success" : "text-muted"}>
-              {live ? "Running" : (health.data?.pods[0]?.phase ?? "Not running")}
-            </span>
-          }
-        />
-        <Stat
-          label="Replicas"
-          value={`${health.data?.ready_replicas ?? 0}/${health.data?.replicas ?? 0}`}
-        />
-        <Stat label="Restarts" value={health.data?.restarts ?? 0} />
-        <Stat
-          label="CPU"
-          value={
-            health.data?.cpu_millicores == null
-              ? "--"
-              : formatCpu(health.data.cpu_millicores)
-          }
-        />
-        <Stat
-          label="Memory"
-          value={
-            health.data?.memory_bytes == null
-              ? "--"
-              : formatBytes(health.data.memory_bytes)
-          }
-        />
-        <Stat label="Limits" value={`${app.data.cpu_limit} · ${app.data.memory_limit}`} />
-        <Stat
-          label="URL"
-          value={
-            <a href={url} target="_blank" rel="noreferrer" className="text-accent">
-              {app.data.name}.localhost
-            </a>
-          }
-        />
-      </Card>
+      {deploy.error instanceof ApiError && (
+        <p role="alert" className="text-danger mt-3 text-[13px]">
+          {deploy.error.message}
+        </p>
+      )}
 
-      <nav className="border-border mt-8 flex gap-1 border-b">
-        {TABS.map((t) => (
+      {/* Live from the cluster, so it cannot go stale the way a cached copy
+          in Postgres would. */}
+      <Panel className="mt-6 overflow-hidden">
+        {deploying ? <ActivityLine /> : <div className="h-px" aria-hidden />}
+
+        <div className="grid grid-cols-2 gap-x-6 gap-y-4 px-5 py-4 sm:grid-cols-3 lg:grid-cols-5">
+          <Detail label="Status">
+            {health.isPending ? (
+              <Skeleton className="h-4 w-16" />
+            ) : (
+              <span className={running ? "text-success" : "text-muted"}>
+                {running
+                  ? "Running"
+                  : (health.data?.pods[0]?.phase ?? "Not running")}
+              </span>
+            )}
+          </Detail>
+
+          <Detail label="Replicas">
+            <span className="tnum font-mono">
+              {health.data?.ready_replicas ?? 0}/{health.data?.replicas ?? 0}
+            </span>
+          </Detail>
+
+          <Detail label="Restarts">
+            <span
+              className={`tnum font-mono ${
+                (health.data?.restarts ?? 0) > 0 ? "text-danger" : ""
+              }`}
+            >
+              {health.data?.restarts ?? 0}
+            </span>
+          </Detail>
+
+          <Detail label="CPU">
+            <span className="tnum font-mono">
+              {health.data?.cpu_millicores == null
+                ? "--"
+                : formatCpu(health.data.cpu_millicores)}
+            </span>
+            <span className="text-faint ml-1.5 text-xs">
+              of {app.data.cpu_limit}
+            </span>
+          </Detail>
+
+          <Detail label="Memory">
+            <span className="tnum font-mono">
+              {health.data?.memory_bytes == null
+                ? "--"
+                : formatBytes(health.data.memory_bytes)}
+            </span>
+            <span className="text-faint ml-1.5 text-xs">
+              of {app.data.memory_limit}
+            </span>
+          </Detail>
+        </div>
+
+        <div className="border-line flex flex-wrap items-center justify-between gap-2 border-t px-5 py-2.5">
+          <a
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            className="text-accent font-mono text-xs hover:underline"
+          >
+            {app.data.name}.localhost
+          </a>
+          {health.data?.cpu_millicores == null && (
+            <p className="text-faint text-xs">
+              Install metrics-server to see CPU and memory use.
+            </p>
+          )}
+        </div>
+      </Panel>
+
+      {/* A pod that will not become ready is the thing worth interrupting for;
+          the message from the cluster usually says exactly what is wrong. */}
+      {failedPods.length > 0 && (
+        <div className="border-danger/30 bg-danger/5 mt-3 rounded-lg border px-5 py-3.5">
+          <p className="text-danger text-[13px] font-medium">
+            {failedPods.length} pod{failedPods.length === 1 ? "" : "s"} not
+            ready
+          </p>
+          <ul className="mt-2 space-y-1">
+            {failedPods.map((pod) => (
+              <li key={pod.name} className="text-muted font-mono text-xs">
+                {pod.name} · {pod.phase}
+                {pod.message ? ` — ${pod.message}` : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <nav className="border-line mt-8 flex gap-1 border-b" aria-label="Project">
+        {TABS.map((name) => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`-mb-px border-b px-3 py-2 text-sm transition-colors ${
-              tab === t
-                ? "border-fg text-fg"
+            key={name}
+            onClick={() => setTab(name)}
+            aria-current={tab === name ? "page" : undefined}
+            className={`-mb-px border-b-2 px-3 py-2 text-[13px] transition-colors ${
+              tab === name
+                ? "border-accent text-fg font-medium"
                 : "text-muted hover:text-fg border-transparent"
             }`}
           >
-            {t}
+            {name}
           </button>
         ))}
       </nav>
@@ -174,20 +270,5 @@ export default function ProjectPage() {
         {tab === "Settings" && <SettingsTab app={app.data} />}
       </div>
     </main>
-  );
-}
-
-function Stat({
-  label,
-  value,
-}: {
-  label: string;
-  value: React.ReactNode;
-}) {
-  return (
-    <div>
-      <p className="text-faint text-xs">{label}</p>
-      <p className="mt-1 text-sm">{value}</p>
-    </div>
   );
 }

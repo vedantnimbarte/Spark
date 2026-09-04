@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { PlusIcon, TrashIcon } from "@/components/icons";
-import { Button, Card, ErrorText, Input, Label } from "@/components/ui";
+import { Button, ErrorText, Field, Input, Panel } from "@/components/ui";
 
 export function DomainsTab({
   appId,
@@ -41,23 +41,28 @@ export function DomainsTab({
 
   return (
     <div className="space-y-6">
-      <Card className="p-5">
+      <Panel className="p-5">
         <form
           className="space-y-4"
-          onSubmit={(e) => {
-            e.preventDefault();
+          onSubmit={(event) => {
+            event.preventDefault();
             add.mutate();
           }}
         >
-          <div className="space-y-1.5">
-            <Label>Custom domain</Label>
+          <Field
+            label="Custom domain"
+            htmlFor="domain-name"
+            hint="Point a CNAME or A record at this cluster's ingress first, or the domain will resolve nowhere."
+          >
             <Input
+              id="domain-name"
               required
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(event) => setName(event.target.value)}
               placeholder="app.example.com"
+              className="font-mono"
             />
-          </div>
+          </Field>
 
           {error && <ErrorText>{error}</ErrorText>}
 
@@ -66,37 +71,45 @@ export function DomainsTab({
             {add.isPending ? "Adding…" : "Add domain"}
           </Button>
         </form>
-      </Card>
+      </Panel>
 
-      <Card className="divide-border divide-y">
-        <div className="flex items-center justify-between px-4 py-3">
-          <div>
-            <p className="text-sm">{appName}.localhost</p>
+      <Panel className="divide-line divide-y overflow-hidden">
+        <div className="flex items-center justify-between gap-4 px-5 py-3.5">
+          <div className="min-w-0">
+            <p className="truncate font-mono text-[13px]">
+              {appName}.localhost
+            </p>
             <p className="text-faint mt-0.5 text-xs">
-              Generated automatically
+              Created with the project. It cannot be removed.
             </p>
           </div>
-          <span className="text-faint text-xs">HTTP</span>
+          <span className="border-line text-faint shrink-0 rounded border px-1.5 py-0.5 text-xs">
+            HTTP
+          </span>
         </div>
 
-        {domains.data?.map((d) => (
+        {domains.data?.map((domain) => (
           <div
-            key={d.id}
-            className="flex items-center justify-between gap-4 px-4 py-3"
+            key={domain.id}
+            className="flex items-center justify-between gap-4 px-5 py-3.5"
           >
             <div className="min-w-0">
-              <p className="truncate text-sm">{d.domain_name}</p>
+              <p className="truncate font-mono text-[13px]">
+                {domain.domain_name}
+              </p>
               <p className="text-faint mt-0.5 text-xs">
-                Point a DNS record at this cluster to use it.
+                Added {new Date(domain.created_at).toLocaleDateString()}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-3">
               {/* TLS is deferred in v1; ssl_status is always "none". */}
-              <span className="text-faint text-xs">HTTP</span>
+              <span className="border-line text-faint rounded border px-1.5 py-0.5 text-xs">
+                HTTP
+              </span>
               <Button
                 variant="danger"
-                aria-label={`Remove ${d.domain_name}`}
-                onClick={() => remove.mutate(d.id)}
+                aria-label={`Remove ${domain.domain_name}`}
+                onClick={() => remove.mutate(domain.id)}
                 disabled={remove.isPending}
               >
                 <TrashIcon className="size-3.5" />
@@ -104,7 +117,11 @@ export function DomainsTab({
             </div>
           </div>
         ))}
-      </Card>
+      </Panel>
+
+      {remove.error instanceof ApiError && (
+        <ErrorText>{remove.error.message}</ErrorText>
+      )}
     </div>
   );
 }

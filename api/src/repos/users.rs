@@ -43,3 +43,14 @@ pub async fn count(db: &PgPool) -> Result<i64> {
         .await?;
     Ok(count)
 }
+
+pub async fn update_password(db: &PgPool, id: Uuid, password_hash: &str) -> Result<()> {
+    sqlx::query!(
+        "UPDATE users SET password_hash = $2 WHERE id = $1",
+        id,
+        password_hash,
+    )
+    .execute(db)
+    .await?;
+    Ok(())
+}

@@ -1,0 +1,59 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n               a.id AS \"app_id!\",\n               a.name AS \"name!\",\n               count(d.id) AS \"deploys!\",\n               count(d.id) FILTER (WHERE d.status = 'deployed') AS \"succeeded!\",\n               count(d.id) FILTER (WHERE d.status = 'failed') AS \"failed!\",\n               percentile_cont(0.5) WITHIN GROUP (\n                   ORDER BY extract(epoch FROM d.finished_at - d.started_at)::float8\n               ) FILTER (\n                   WHERE d.started_at IS NOT NULL AND d.finished_at IS NOT NULL\n               ) AS \"median_build_seconds\",\n               max(d.created_at) AS \"last_deploy_at\"\n           FROM applications a\n           LEFT JOIN deployments d\n             ON d.app_id = a.id\n            AND d.created_at >= now() - make_interval(days => $2)\n           WHERE a.owner_id = $1\n           GROUP BY a.id, a.name\n           ORDER BY count(d.id) DESC, a.name",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "app_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "name!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "deploys!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "succeeded!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "failed!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "median_build_seconds",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 6,
+        "name": "last_deploy_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "a75841011265133c40250c11df26298d611392ff1e0ae153d50e7c6efcf72726"
+}

@@ -4,4 +4,5 @@ pub mod deployments;
 pub mod domains;
 pub mod env;
 pub mod health;
+pub mod stats;
 pub mod webhooks;

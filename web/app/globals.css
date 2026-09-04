@@ -1,28 +1,38 @@
 @import "tailwindcss";
 
 /*
- * Palette and type: stark dark mode, 1px borders
- * instead of shadows, hierarchy by weight and opacity rather than size.
+ * Spark's console palette.
+ *
+ * Depth comes from elevation, not shadow: every surface sits at a known level
+ * relative to the page ground, and a 1px line marks the step. Three levels is
+ * the whole system — sunken for content the machine wrote (logs, values,
+ * inputs), ground for the page itself, raised for a discrete object.
+ *
+ * The accent is not decorative. Amber means "in flight", and it is the same
+ * amber the build and deploy states use, so the brand colour and the status
+ * colour are one idea rather than two competing ones.
  */
 @theme {
-  --color-base: #000000;
-  --color-surface: #0a0a0a;
-  --color-border: #222222;
-  --color-border-strong: #333333;
+  --color-sunken: #06070a;
+  --color-base: #0a0c10;
+  --color-raised: #12151c;
+  --color-line: #1e232d;
+  --color-line-strong: #2e3542;
 
-  --color-fg: #ffffff;
-  --color-muted: #888888;
-  --color-faint: #555555;
+  --color-fg: #eef1f6;
+  --color-muted: #8b93a3;
+  --color-faint: #5a6273;
 
-  --color-accent: #3b82f6;
-  --color-success: #22c55e;
-  --color-danger: #ef4444;
-  --color-pending: #eab308;
+  --color-accent: #ffb02e;
+  --color-success: #3ddc84;
+  --color-danger: #ff5c5c;
+  --color-queued: #7c8cff;
 
-  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", Menlo, monospace;
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Code", Menlo, monospace;
 
-  /* "Instantaneous or under 150ms." */
+  /* A console should feel like it already knew. */
   --default-transition-duration: 120ms;
 }
 
@@ -32,23 +42,37 @@ body {
   color: var(--color-fg);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-/* The dashboard is dark-only by design, so tell the browser as much: form
-   controls and scrollbars follow this. */
+/* Dark-only by design, so form controls and scrollbars follow without being
+   individually restyled. */
 :root {
   color-scheme: dark;
 }
 
 ::selection {
   background: var(--color-accent);
-  color: #fff;
+  color: #17130a;
 }
 
-/* Flat, thin scrollbars — the log pane is the main scrolling surface. */
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--color-border-strong) transparent;
+  scrollbar-color: var(--color-line-strong) transparent;
+}
+
+/* Every readout on this dashboard repolls on a timer. Proportional digits make
+   the numbers twitch sideways on each refresh; tabular ones hold still. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* A visible, high-contrast focus ring that does not shift layout. Keyboard
+   users get it; mouse users are not shouted at. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 3px;
 }
 
 @keyframes pulse-dot {
@@ -57,10 +81,40 @@ body {
     opacity: 1;
   }
   50% {
-    opacity: 0.35;
+    opacity: 0.3;
+  }
+}
+
+/* The single piece of ambient motion in the product: a hairline that travels
+   the width of a panel while a build is running. Nothing else animates on its
+   own. */
+@keyframes sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(400%);
   }
 }
 
 .animate-pulse-dot {
-  animation: pulse-dot 1.2s ease-in-out infinite;
+  animation: pulse-dot 1.4s ease-in-out infinite;
+}
+
+.animate-sweep {
+  animation: sweep 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse-dot,
+  .animate-sweep {
+    animation: none;
+  }
+}
+
+/* Recharts draws a focus rectangle around the whole surface on click, which
+   reads as a bug on a dark ground. */
+.recharts-wrapper:focus,
+.recharts-surface:focus {
+  outline: none;
 }

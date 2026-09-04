@@ -54,12 +54,42 @@ pub async fn end_session(db: &PgPool, token: &str) -> Result<()> {
     sessions::delete(db, &session::hash_token(token)).await
 }
 
+/// Changes the password and signs out everywhere else.
+///
+/// Verifying the current password first is what stops a borrowed browser tab
+/// from becoming a permanent takeover; dropping the other sessions is what
+/// makes the change actually evict whoever was already in.
+pub async fn change_password(
+    db: &PgPool,
+    user: &User,
+    current: &str,
+    new: &str,
+    keep_token: &str,
+) -> Result<u64> {
+    if !verify_password(current, &user.password_hash)? {
+        return Err(Error::Invalid("current password is incorrect".into()));
+    }
+    validate_password(new)?;
+    if current == new {
+        return Err(Error::Invalid(
+            "the new password must differ from the current one".into(),
+        ));
+    }
+
+    users::update_password(db, user.id, &hash_password(new)?).await?;
+    sessions::delete_others(db, user.id, &session::hash_token(keep_token)).await
+}
+
 fn validate_credentials(email: &str, password: &str) -> Result<()> {
     // Deliberately loose: the only email check that is not wrong in some locale
     // is whether it could plausibly be routed.
     if !email.contains('@') || email.len() < 3 || email.len() > 254 {
         return Err(Error::Invalid("a valid email address is required".into()));
     }
+    validate_password(password)
+}
+
+fn validate_password(password: &str) -> Result<()> {
     if password.chars().count() < 12 {
         return Err(Error::Invalid(
             "password must be at least 12 characters".into(),

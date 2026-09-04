@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api, ApiError, type Application } from "@/lib/api";
-import { Button, Card, ErrorText, Input, Label } from "@/components/ui";
+import { Button, Panel, ErrorText, Input, Label } from "@/components/ui";
 
 export function SettingsTab({ app }: { app: Application }) {
   const router = useRouter();
@@ -67,7 +67,7 @@ export function SettingsTab({ app }: { app: Application }) {
 
   return (
     <div className="space-y-6">
-      <Card className="p-5">
+      <Panel className="p-5">
         <form
           className="space-y-4"
           onSubmit={(e) => {
@@ -145,11 +145,11 @@ export function SettingsTab({ app }: { app: Application }) {
             </p>
           </div>
         </form>
-      </Card>
+      </Panel>
 
-      <Card className="space-y-3 p-5">
+      <Panel className="space-y-3 p-5">
         <div>
-          <h2 className="text-sm font-medium">Private repository access</h2>
+          <h2 className="text-[13px] font-medium">Private repository access</h2>
           <p className="text-muted mt-1 text-xs">
             A personal access token with read access. Stored in a Kubernetes
             Secret separate from your environment variables, so it is never
@@ -159,7 +159,7 @@ export function SettingsTab({ app }: { app: Application }) {
 
         {app.git_credentials_set ? (
           <div className="flex flex-wrap items-center gap-3">
-            <span className="text-success text-sm">A token is configured</span>
+            <span className="text-success text-[13px]">A token is configured</span>
             <Button
               variant="danger"
               onClick={() => clearToken.mutate()}
@@ -193,11 +193,11 @@ export function SettingsTab({ app }: { app: Application }) {
             </Button>
           </form>
         )}
-      </Card>
+      </Panel>
 
-      <Card className="space-y-3 p-5">
+      <Panel className="space-y-3 p-5">
         <div>
-          <h2 className="text-sm font-medium">Push webhook</h2>
+          <h2 className="text-[13px] font-medium">Push webhook</h2>
           <p className="text-muted mt-1 text-xs">
             Add this to your repository so a push deploys automatically. The
             secret signs the payload.
@@ -223,11 +223,11 @@ export function SettingsTab({ app }: { app: Application }) {
             onFocus={(e) => e.currentTarget.select()}
           />
         </div>
-      </Card>
+      </Panel>
 
-      <Card className="border-danger/30 space-y-3 p-5">
+      <Panel className="border-danger/30 space-y-3 p-5">
         <div>
-          <h2 className="text-danger text-sm font-medium">Delete project</h2>
+          <h2 className="text-danger text-[13px] font-medium">Delete project</h2>
           <p className="text-muted mt-1 text-xs">
             Removes the application and its entire Kubernetes namespace,
             including environment variables. This cannot be undone.
@@ -249,7 +249,7 @@ export function SettingsTab({ app }: { app: Application }) {
             {destroy.isPending ? "Deleting…" : "Delete permanently"}
           </Button>
         </div>
-      </Card>
+      </Panel>
     </div>
   );
 }

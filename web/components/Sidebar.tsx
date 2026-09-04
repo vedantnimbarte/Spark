@@ -35,46 +35,45 @@ export function Sidebar({ email }: { email: string }) {
 
   return (
     <aside
-      className={`border-border flex shrink-0 flex-col border-r transition-[width] ${
+      className={`border-line bg-sunken flex shrink-0 flex-col border-r transition-[width] ${
         collapsed ? "w-14" : "w-56"
       }`}
     >
-      <div className="border-border flex h-14 items-center gap-2 border-b px-4">
+      <div className="border-line flex h-14 items-center gap-2.5 border-b px-4">
         <SparkIcon className="text-accent size-4 shrink-0" />
         {!collapsed && (
-          <span className="text-sm font-semibold tracking-tight">Spark</span>
+          <span className="text-[13px] font-semibold tracking-tight">
+            Spark
+          </span>
         )}
       </div>
 
-      <nav className="flex-1 space-y-0.5 p-2">
+      <nav className="flex-1 space-y-0.5 p-2 pl-4">
         {NAV.map(({ href, label, Icon }) => (
-          <NavLink
-            key={href}
-            href={href}
-            active={pathname.startsWith(href)}
-          >
+          <NavLink key={href} href={href} active={pathname.startsWith(href)}>
             <Icon className="size-4 shrink-0" />
             {!collapsed && label}
           </NavLink>
         ))}
       </nav>
 
-      <div className="border-border space-y-2 border-t p-2">
+      <div className="border-line border-t p-2">
         {!collapsed && (
-          <p className="text-faint truncate px-2.5 text-xs" title={email}>
+          <p className="text-faint truncate px-2.5 pt-1 pb-2 text-xs" title={email}>
             {email}
           </p>
         )}
         <button
           onClick={() => logout.mutate()}
-          className="text-muted hover:text-fg w-full rounded-md px-2.5 py-1.5 text-left text-xs transition-colors"
+          disabled={logout.isPending}
+          className="text-muted hover:text-fg hover:bg-line/30 w-full rounded-md px-2.5 py-1.5 text-left text-xs transition-colors disabled:opacity-50"
         >
-          {collapsed ? "→" : "Sign out"}
+          {collapsed ? "⏻" : logout.isPending ? "Signing out…" : "Sign out"}
         </button>
         <button
           onClick={() => setCollapsed((c) => !c)}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className="text-faint hover:text-fg w-full rounded-md px-2.5 py-1.5 text-left transition-colors"
+          className="text-faint hover:text-fg hover:bg-line/30 mt-0.5 w-full rounded-md px-2.5 py-1.5 text-left transition-colors"
         >
           <ChevronIcon
             className={`size-4 transition-transform ${collapsed ? "" : "rotate-180"}`}

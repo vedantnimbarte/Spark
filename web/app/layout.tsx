@@ -15,6 +15,15 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        {/*
+         * One superfamily, two jobs: Plex Sans carries the interface, Plex Mono
+         * is reserved for text the machine produced — commit hashes, durations,
+         * byte counts, log output — so monospace stays a signal, not a texture.
+         *
+         * Linked rather than pulled in through next/font on purpose: next/font
+         * downloads the faces during `next build`, which makes the build fail
+         * on a machine without access to Google Fonts.
+         */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
           rel="preconnect"
@@ -22,7 +31,7 @@ export default function RootLayout({
           crossOrigin="anonymous"
         />
         <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+          href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
           rel="stylesheet"
         />
       </head>

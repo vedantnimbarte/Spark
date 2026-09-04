@@ -68,3 +68,64 @@ pub async fn logout(State(state): State<SharedState>, jar: CookieJar) -> Result<
 pub async fn me(CurrentUser(user): CurrentUser) -> Json<User> {
     Json(user)
 }
+
+#[derive(Debug, Deserialize)]
+pub struct PasswordChange {
+    pub current_password: String,
+    pub new_password: String,
+}
+
+#[derive(serde::Serialize)]
+pub struct PasswordChanged {
+    /// How many other sessions the change signed out, so the dashboard can say
+    /// what it did rather than leaving it implied.
+    pub sessions_revoked: u64,
+}
+
+pub async fn change_password(
+    State(state): State<SharedState>,
+    jar: CookieJar,
+    CurrentUser(user): CurrentUser,
+    Json(body): Json<PasswordChange>,
+) -> Result<Json<PasswordChanged>> {
+    // The extractor already proved this cookie is valid; it is read again here
+    // because the change needs to know which session to spare.
+    let token = jar.get(session::COOKIE_NAME).ok_or(Error::Unauthorized)?;
+    let sessions_revoked = svc::change_password(
+        &state.db,
+        &user,
+        &body.current_password,
+        &body.new_password,
+        token.value(),
+    )
+    .await?;
+    Ok(Json(PasswordChanged { sessions_revoked }))
+}
+
+pub async fn list_sessions(
+    State(state): State<SharedState>,
+    jar: CookieJar,
+    CurrentUser(user): CurrentUser,
+) -> Result<Json<Vec<crate::repos::sessions::SessionInfo>>> {
+    let token = jar.get(session::COOKIE_NAME).ok_or(Error::Unauthorized)?;
+    let sessions = crate::repos::sessions::list_for_user(
+        &state.db,
+        user.id,
+        &session::hash_token(token.value()),
+    )
+    .await?;
+    Ok(Json(sessions))
+}
+
+pub async fn revoke_session(
+    State(state): State<SharedState>,
+    CurrentUser(user): CurrentUser,
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
+) -> Result<StatusCode> {
+    // A revoke that matched nothing is reported as such: silently returning
+    // success would tell the owner a session is gone when it is not.
+    if crate::repos::sessions::delete_owned(&state.db, id, user.id).await? == 0 {
+        return Err(Error::NotFound("session"));
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
