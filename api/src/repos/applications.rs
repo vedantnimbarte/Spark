@@ -23,7 +23,8 @@ pub async fn create(db: &PgPool, new: NewApplication) -> Result<Application> {
               container_port, cpu_limit, memory_limit, webhook_secret)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
            RETURNING id, owner_id, name, git_repo, git_branch, build_type, dockerfile_path,
-                     container_port, cpu_limit, memory_limit, webhook_secret, created_at"#,
+                     container_port, cpu_limit, memory_limit, replicas, git_credentials_set,
+                     webhook_secret, created_at"#,
         new.owner_id,
         new.name,
         new.git_repo,
@@ -44,7 +45,8 @@ pub async fn list_by_owner(db: &PgPool, owner_id: Uuid) -> Result<Vec<Applicatio
     let apps = sqlx::query_as!(
         Application,
         r#"SELECT id, owner_id, name, git_repo, git_branch, build_type, dockerfile_path,
-                  container_port, cpu_limit, memory_limit, webhook_secret, created_at
+                  container_port, cpu_limit, memory_limit, replicas, git_credentials_set,
+                  webhook_secret, created_at
            FROM applications WHERE owner_id = $1 ORDER BY created_at DESC"#,
         owner_id,
     )
@@ -59,7 +61,8 @@ pub async fn find_owned(db: &PgPool, id: Uuid, owner_id: Uuid) -> Result<Option<
     let app = sqlx::query_as!(
         Application,
         r#"SELECT id, owner_id, name, git_repo, git_branch, build_type, dockerfile_path,
-                  container_port, cpu_limit, memory_limit, webhook_secret, created_at
+                  container_port, cpu_limit, memory_limit, replicas, git_credentials_set,
+                  webhook_secret, created_at
            FROM applications WHERE id = $1 AND owner_id = $2"#,
         id,
         owner_id,
@@ -77,6 +80,7 @@ pub struct ApplicationUpdate {
     pub container_port: Option<i32>,
     pub cpu_limit: Option<String>,
     pub memory_limit: Option<String>,
+    pub replicas: Option<i32>,
 }
 
 pub async fn update(
@@ -92,10 +96,12 @@ pub async fn update(
              dockerfile_path = COALESCE($4, dockerfile_path),
              container_port  = COALESCE($5, container_port),
              cpu_limit       = COALESCE($6, cpu_limit),
-             memory_limit    = COALESCE($7, memory_limit)
+             memory_limit    = COALESCE($7, memory_limit),
+             replicas        = COALESCE($8, replicas)
            WHERE id = $1 AND owner_id = $2
            RETURNING id, owner_id, name, git_repo, git_branch, build_type, dockerfile_path,
-                     container_port, cpu_limit, memory_limit, webhook_secret, created_at"#,
+                     container_port, cpu_limit, memory_limit, replicas, git_credentials_set,
+                     webhook_secret, created_at"#,
         id,
         owner_id,
         patch.git_branch,
@@ -103,6 +109,7 @@ pub async fn update(
         patch.container_port,
         patch.cpu_limit,
         patch.memory_limit,
+        patch.replicas,
     )
     .fetch_optional(db)
     .await?;
@@ -126,11 +133,25 @@ pub async fn find_by_id(db: &PgPool, id: Uuid) -> Result<Option<Application>> {
     let app = sqlx::query_as!(
         Application,
         r#"SELECT id, owner_id, name, git_repo, git_branch, build_type, dockerfile_path,
-                  container_port, cpu_limit, memory_limit, webhook_secret, created_at
+                  container_port, cpu_limit, memory_limit, replicas, git_credentials_set,
+                  webhook_secret, created_at
            FROM applications WHERE id = $1"#,
         id,
     )
     .fetch_optional(db)
     .await?;
     Ok(app)
+}
+
+/// Mirrors whether a git credential exists in the application's Secret. The
+/// credential itself stays in Kubernetes.
+pub async fn set_git_credentials_flag(db: &PgPool, id: Uuid, present: bool) -> Result<()> {
+    sqlx::query!(
+        "UPDATE applications SET git_credentials_set = $2 WHERE id = $1",
+        id,
+        present,
+    )
+    .execute(db)
+    .await?;
+    Ok(())
 }

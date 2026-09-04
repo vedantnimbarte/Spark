@@ -8,9 +8,10 @@ use k8s_openapi::{
         apps::v1::{Deployment, DeploymentSpec},
         batch::v1::{Job, JobSpec},
         core::v1::{
-            AppArmorProfile, Container, ContainerPort, EnvFromSource, EnvVar, PodSpec,
+            AppArmorProfile, Container, ContainerPort, EnvFromSource, EnvVar, KeyToPath, PodSpec,
             PodTemplateSpec, Probe, ResourceRequirements, SeccompProfile, SecretEnvSource,
-            SecurityContext, Service, ServicePort, ServiceSpec, TCPSocketAction,
+            SecretVolumeSource, SecurityContext, Service, ServicePort, ServiceSpec,
+            TCPSocketAction, Volume, VolumeMount,
         },
         networking::v1::{
             HTTPIngressPath, HTTPIngressRuleValue, IPBlock, Ingress, IngressBackend, IngressRule,
@@ -29,6 +30,10 @@ use uuid::Uuid;
 /// Rootless BuildKit, replacing the archived Kaniko.
 const BUILDKIT_IMAGE: &str = "moby/buildkit:v0.19.0-rootless";
 
+/// Where the deploy token is mounted inside the build pod.
+const GIT_TOKEN_PATH: &str = "/run/spark";
+const GIT_TOKEN_FILE: &str = "token";
+
 pub struct BuildSpec {
     pub deployment_id: Uuid,
     pub app_id: Uuid,
@@ -39,6 +44,10 @@ pub struct BuildSpec {
     pub dockerfile_path: String,
     pub image_ref: String,
     pub registry_insecure: bool,
+    /// Mount the deploy token so BuildKit can clone a private repository.
+    pub git_token: bool,
+    /// Registry ref used to import and export the layer cache between builds.
+    pub cache_ref: Option<String>,
 }
 
 pub fn build_job_name(deployment_id: Uuid) -> String {
@@ -61,7 +70,7 @@ pub fn build_job(spec: &BuildSpec) -> Job {
         output.push_str(",registry.insecure=true");
     }
 
-    let args = vec![
+    let mut args = vec![
         "build".to_string(),
         "--frontend=dockerfile.v0".to_string(),
         format!("--opt=context={}#{}", spec.git_repo, spec.git_ref),
@@ -70,6 +79,30 @@ pub fn build_job(spec: &BuildSpec) -> Job {
         // Plain progress keeps the pod log readable as a build log.
         "--progress=plain".to_string(),
     ];
+
+    // BuildKit's git source reads this secret for HTTP authentication, which
+    // keeps the token out of the context URL and therefore out of the log.
+    if spec.git_token {
+        args.push(format!(
+            "--secret=id=GIT_AUTH_TOKEN,src={GIT_TOKEN_PATH}/{GIT_TOKEN_FILE}"
+        ));
+    }
+
+    // Layer cache lives in the registry rather than on a volume, so it outlives
+    // the build pod without needing storage of its own.
+    if let Some(cache) = &spec.cache_ref {
+        let insecure = if spec.registry_insecure {
+            ",registry.insecure=true"
+        } else {
+            ""
+        };
+        args.push(format!(
+            "--import-cache=type=registry,ref={cache}{insecure}"
+        ));
+        args.push(format!(
+            "--export-cache=type=registry,ref={cache},mode=max{insecure}"
+        ));
+    }
 
     let mut job_labels = labels(spec.app_id);
     job_labels.insert(
@@ -112,6 +145,14 @@ pub fn build_job(spec: &BuildSpec) -> Job {
                             value: Some("--oci-worker-no-process-sandbox".to_string()),
                             ..Default::default()
                         }]),
+                        volume_mounts: spec.git_token.then(|| {
+                            vec![VolumeMount {
+                                name: "git-token".to_string(),
+                                mount_path: GIT_TOKEN_PATH.to_string(),
+                                read_only: Some(true),
+                                ..Default::default()
+                            }]
+                        }),
                         security_context: Some(SecurityContext {
                             run_as_user: Some(1000),
                             run_as_group: Some(1000),
@@ -127,6 +168,23 @@ pub fn build_job(spec: &BuildSpec) -> Job {
                         }),
                         ..Default::default()
                     }],
+                    volumes: spec.git_token.then(|| {
+                        vec![Volume {
+                            name: "git-token".to_string(),
+                            secret: Some(SecretVolumeSource {
+                                secret_name: Some(GIT_SECRET.to_string()),
+                                items: Some(vec![KeyToPath {
+                                    key: GIT_TOKEN_KEY.to_string(),
+                                    path: GIT_TOKEN_FILE.to_string(),
+                                    ..Default::default()
+                                }]),
+                                // Readable by the non-root build user only.
+                                default_mode: Some(0o400),
+                                ..Default::default()
+                            }),
+                            ..Default::default()
+                        }]
+                    }),
                     ..Default::default()
                 }),
             },
@@ -134,6 +192,25 @@ pub fn build_job(spec: &BuildSpec) -> Job {
         }),
         ..Default::default()
     }
+}
+
+/// Splits `host[:port]/repository:tag` into repository and tag.
+///
+/// Naive splitting on ':' would take the registry port for the tag, so the
+/// registry host is removed first.
+pub fn split_image_ref(image: &str) -> Option<(String, String)> {
+    let (host, rest) = image.split_once('/')?;
+    // A first segment with a dot or colon is a registry host, not a namespace.
+    if !host.contains('.') && !host.contains(':') && host != "localhost" {
+        return None;
+    }
+    let (repository, tag) = rest.rsplit_once(':')?;
+    Some((repository.to_string(), tag.to_string()))
+}
+
+/// Registry ref holding the layer cache for an application.
+pub fn cache_ref(registry: &str, app_id: Uuid) -> String {
+    format!("{registry}/spark/{app_id}:buildcache")
 }
 
 /// `<registry>/spark/<app id>:<deployment id>`.
@@ -158,6 +235,8 @@ mod tests {
             dockerfile_path: "Dockerfile".to_string(),
             image_ref: "localhost:30500/spark/app:dep".to_string(),
             registry_insecure: true,
+            git_token: false,
+            cache_ref: None,
         }
     }
 
@@ -211,6 +290,24 @@ mod tests {
     }
 
     #[test]
+    fn image_refs_split_back_into_repository_and_tag() {
+        let a = Uuid::from_u128(1);
+        let d = Uuid::from_u128(2);
+        let image = image_ref("localhost:30500", a, d);
+
+        // The registry port must not be mistaken for the tag.
+        assert_eq!(
+            split_image_ref(&image),
+            Some((format!("spark/{a}"), d.to_string()))
+        );
+        assert_eq!(
+            split_image_ref("ghcr.io/owner/spark/x:v1"),
+            Some(("owner/spark/x".to_string(), "v1".to_string()))
+        );
+        assert_eq!(split_image_ref("no-slash"), None);
+    }
+
+    #[test]
     fn image_refs_are_keyed_on_ids_not_names() {
         let a = Uuid::from_u128(1);
         let d = Uuid::from_u128(2);
@@ -232,6 +329,7 @@ pub struct AppSpec {
     pub container_port: i32,
     pub cpu_limit: String,
     pub memory_limit: String,
+    pub replicas: i32,
     /// Default host first, then any custom domains.
     pub hosts: Vec<String>,
 }
@@ -241,6 +339,10 @@ pub struct AppSpec {
 pub const APP_RESOURCE: &str = "app";
 /// Secret holding the application's environment variables.
 pub const ENV_SECRET: &str = "app-env";
+/// Secret holding the git deploy token. Kept apart from ENV_SECRET so the token
+/// is never injected into the running application.
+pub const GIT_SECRET: &str = "app-git";
+pub const GIT_TOKEN_KEY: &str = "token";
 
 fn selector(app_id: Uuid) -> BTreeMap<String, String> {
     BTreeMap::from([("spark.io/app".to_string(), app_id.to_string())])
@@ -261,7 +363,7 @@ pub fn app_deployment(spec: &AppSpec) -> Deployment {
             ..Default::default()
         },
         spec: Some(DeploymentSpec {
-            replicas: Some(1),
+            replicas: Some(spec.replicas),
             selector: LabelSelector {
                 match_labels: Some(selector(spec.app_id)),
                 ..Default::default()
@@ -312,6 +414,20 @@ pub fn app_deployment(spec: &AppSpec) -> Deployment {
                             }),
                             initial_delay_seconds: Some(2),
                             period_seconds: Some(5),
+                            ..Default::default()
+                        }),
+                        // Readiness alone never restarts anything, so a wedged
+                        // process would sit out of the Service forever. The
+                        // thresholds are deliberately tolerant: a slow
+                        // application is not a dead one.
+                        liveness_probe: Some(Probe {
+                            tcp_socket: Some(TCPSocketAction {
+                                port: IntOrString::Int(spec.container_port),
+                                ..Default::default()
+                            }),
+                            initial_delay_seconds: Some(30),
+                            period_seconds: Some(15),
+                            failure_threshold: Some(4),
                             ..Default::default()
                         }),
                         ..Default::default()
@@ -491,6 +607,7 @@ mod app_tests {
             container_port: 3000,
             cpu_limit: "250m".to_string(),
             memory_limit: "256Mi".to_string(),
+            replicas: 2,
             hosts: vec!["blog.localhost".to_string(), "example.com".to_string()],
         }
     }

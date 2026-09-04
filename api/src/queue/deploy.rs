@@ -42,8 +42,24 @@ pub async fn run(state: &SharedState, payload: &serde_json::Value) -> Result<()>
     // band between app creation and this deploy.
     state.cluster.ensure_namespace(&namespace).await?;
 
-    let image = manifests::image_ref(&state.config.registry_url, app.id, deployment.id);
-    build(state, &app, &deployment, &namespace, &image).await?;
+    // A rollback already has an image; rebuilding it would defeat the point of
+    // rolling back to a known-good artefact.
+    let image = match &deployment.image_ref {
+        Some(existing) if deployment.rolled_back_from.is_some() => {
+            log(
+                state,
+                deployment.id,
+                &format!("[spark] rolling back to {existing}"),
+            )
+            .await;
+            existing.clone()
+        }
+        _ => {
+            let image = manifests::image_ref(&state.config.registry_url, app.id, deployment.id);
+            build(state, &app, &deployment, &namespace, &image).await?;
+            image
+        }
+    };
 
     deployments::set_status(&state.db, deployment.id, "deploying").await?;
     rollout(state, &app, &namespace, &image).await?;
@@ -80,6 +96,11 @@ async fn build(
         dockerfile_path: app.dockerfile_path.clone(),
         image_ref: image.to_string(),
         registry_insecure: state.config.registry_insecure,
+        git_token: app.git_credentials_set,
+        cache_ref: state
+            .config
+            .build_cache
+            .then(|| manifests::cache_ref(&state.config.registry_url, app.id)),
     });
 
     // Deleting is not instant; apply until the old Job is really gone.
@@ -144,6 +165,7 @@ async fn rollout(
         container_port: app.container_port,
         cpu_limit: app.cpu_limit.clone(),
         memory_limit: app.memory_limit.clone(),
+        replicas: app.replicas,
         hosts,
     };
 
@@ -175,19 +197,25 @@ async fn rollout(
         )
         .await?;
 
+    // Scaled to zero: there is nothing to wait for.
+    if app.replicas == 0 {
+        return Ok(());
+    }
+
     let deadline = tokio::time::Instant::now() + ROLLOUT_TIMEOUT;
     loop {
         if state
             .cluster
             .ready_replicas(namespace, APP_RESOURCE)
             .await?
-            > 0
+            >= app.replicas
         {
             return Ok(());
         }
         if tokio::time::Instant::now() >= deadline {
             return Err(Error::Invalid(
-                "the application did not become ready; check that it listens on the                  configured port"
+                "the application did not become ready; check that it listens on the \
+                 configured port"
                     .to_string(),
             ));
         }
@@ -196,15 +224,7 @@ async fn rollout(
 }
 
 async fn log(state: &SharedState, deployment_id: Uuid, line: &str) {
-    let _ = deployments::append_logs(
-        &state.db,
-        deployment_id,
-        &format!(
-            "{line}
-"
-        ),
-    )
-    .await;
+    let _ = deployments::append_log(&state.db, deployment_id, line).await;
 }
 
 /// Copies the builder's output into the deployment log. Best effort: losing the
@@ -249,16 +269,16 @@ async fn stream_build_logs(
         .cluster
         .follow_logs(namespace, &pod, |line| {
             let db = db.clone();
-            async move { deployments::append_logs(&db, deployment_id, &format!("{line}\n")).await }
+            async move { deployments::append_log(&db, deployment_id, &line).await }
         })
         .await;
 
     if let Err(error) = result {
         tracing::warn!(%error, "build log stream ended early");
-        let _ = deployments::append_logs(
+        let _ = deployments::append_log(
             &state.db,
             deployment_id,
-            &format!("\n[spark] log stream ended early: {error}\n"),
+            &format!("[spark] log stream ended early: {error}"),
         )
         .await;
     }
@@ -269,10 +289,10 @@ pub async fn mark_failed(state: &SharedState, payload: &serde_json::Value, messa
     let Ok(payload) = serde_json::from_value::<DeployPayload>(payload.clone()) else {
         return;
     };
-    let _ = deployments::append_logs(
+    let _ = deployments::append_log(
         &state.db,
         payload.deployment_id,
-        &format!("\n[spark] deployment failed: {message}\n"),
+        &format!("[spark] deployment failed: {message}"),
     )
     .await;
     let _ = deployments::finish(&state.db, payload.deployment_id, "failed", None).await;

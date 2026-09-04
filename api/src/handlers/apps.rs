@@ -2,7 +2,10 @@ use crate::{
     auth::session::CurrentUser,
     error::Result,
     models::Application,
-    services::applications::{self as svc, CreateApplication, UpdateApplication},
+    services::{
+        applications::{self as svc, CreateApplication, UpdateApplication},
+        git_credentials,
+    },
     state::SharedState,
 };
 use axum::{
@@ -90,4 +93,30 @@ pub async fn health(
         .app_status(&crate::k8s::names::namespace(app.id), &app.id.to_string())
         .await?;
     Ok(Json(status))
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct GitCredentials {
+    pub token: String,
+}
+
+/// Stores a deploy token for a private repository. Write-only: the token is
+/// never returned, only the fact that one is set.
+pub async fn set_git_credentials(
+    State(state): State<SharedState>,
+    CurrentUser(user): CurrentUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<GitCredentials>,
+) -> Result<StatusCode> {
+    git_credentials::set(&state, id, user.id, &body.token).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn clear_git_credentials(
+    State(state): State<SharedState>,
+    CurrentUser(user): CurrentUser,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode> {
+    git_credentials::clear(&state, id, user.id).await?;
+    Ok(StatusCode::NO_CONTENT)
 }

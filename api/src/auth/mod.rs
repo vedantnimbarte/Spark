@@ -1,3 +1,4 @@
+pub mod rate_limit;
 pub mod session;
 
 use crate::error::{Error, Result};

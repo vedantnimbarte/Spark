@@ -20,6 +20,8 @@ pub struct Config {
     /// Set on the session cookie. Must be false when the dashboard is served
     /// over plain HTTP, or the browser silently discards the cookie.
     pub cookie_secure: bool,
+    /// Import and export a BuildKit layer cache in the registry between builds.
+    pub build_cache: bool,
 }
 
 impl Config {
@@ -41,6 +43,9 @@ impl Config {
             cookie_secure: optional("COOKIE_SECURE", "false")
                 .parse()
                 .context("COOKIE_SECURE must be true or false")?,
+            build_cache: optional("BUILD_CACHE", "true")
+                .parse()
+                .context("BUILD_CACHE must be true or false")?,
             cluster_cidrs: optional("CLUSTER_CIDRS", "10.96.0.0/12,10.244.0.0/16")
                 .split(',')
                 .map(|c| c.trim().to_string())

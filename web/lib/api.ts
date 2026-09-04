@@ -22,6 +22,8 @@ export interface Application {
   container_port: number;
   cpu_limit: string;
   memory_limit: string;
+  replicas: number;
+  git_credentials_set: boolean;
   created_at: string;
 }
 
@@ -38,6 +40,8 @@ export interface Deployment {
   commit_sha: string;
   status: DeploymentStatus;
   image_ref: string | null;
+  /** Set when this deployment reused an earlier deployment's image. */
+  rolled_back_from: string | null;
   started_at: string | null;
   finished_at: string | null;
   created_at: string;
@@ -62,6 +66,9 @@ export interface AppHealth {
   replicas: number;
   ready_replicas: number;
   restarts: number;
+  /** null when metrics-server is not installed, which is not the same as 0. */
+  cpu_millicores: number | null;
+  memory_bytes: number | null;
   pods: PodStatus[];
 }
 
@@ -172,6 +179,20 @@ export const api = {
 
   getDeployment: (id: string) => request<Deployment>(`/deployments/${id}`),
 
+  rollback: (deploymentId: string) =>
+    request<Deployment>(`/deployments/${deploymentId}/rollback`, {
+      method: "POST",
+    }),
+
+  setGitCredentials: (id: string, token: string) =>
+    request<void>(`/apps/${id}/git-credentials`, {
+      method: "PUT",
+      body: JSON.stringify({ token }),
+    }),
+
+  clearGitCredentials: (id: string) =>
+    request<void>(`/apps/${id}/git-credentials`, { method: "DELETE" }),
+
   listEnv: (id: string) => request<{ keys: string[] }>(`/apps/${id}/env`),
 
   setEnv: (id: string, vars: Record<string, string>) =>
@@ -227,6 +248,25 @@ export function timeAgo(iso: string): string {
     }
   }
   return `${Math.floor(seconds / 2592000)}mo ago`;
+}
+
+/** Bytes as a compact binary size, e.g. "48 MiB". */
+export function formatBytes(bytes: number): string {
+  const units = ["B", "KiB", "MiB", "GiB", "TiB"];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${value < 10 && unit > 0 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
+}
+
+/** Millicores as cores when large enough to read that way. */
+export function formatCpu(millicores: number): string {
+  return millicores >= 1000
+    ? `${(millicores / 1000).toFixed(2)} cores`
+    : `${millicores}m`;
 }
 
 export function shortSha(sha: string): string {

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, owner_id, name, git_repo, git_branch, build_type, dockerfile_path,\n                  container_port, cpu_limit, memory_limit, webhook_secret, created_at\n           FROM applications WHERE id = $1 AND owner_id = $2",
+  "query": "SELECT id, owner_id, name, git_repo, git_branch, build_type, dockerfile_path,\n                  container_port, cpu_limit, memory_limit, replicas, git_credentials_set,\n                  webhook_secret, created_at\n           FROM applications WHERE id = $1 AND owner_id = $2",
   "describe": {
     "columns": [
       {
@@ -55,11 +55,21 @@
       },
       {
         "ordinal": 10,
+        "name": "replicas",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 11,
+        "name": "git_credentials_set",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 12,
         "name": "webhook_secret",
         "type_info": "Text"
       },
       {
-        "ordinal": 11,
+        "ordinal": 13,
         "name": "created_at",
         "type_info": "Timestamptz"
       }
@@ -82,8 +92,10 @@
       false,
       false,
       false,
+      false,
+      false,
       false
     ]
   },
-  "hash": "1ec3d5cc7f190c27af173bd1d4b50a80d94c40dbcb8e318c7b5e8e986d388eeb"
+  "hash": "b5cda17dc06cc31e295a84fdf063d4ca697b14d73e92f4c3c6ec50d6ce127187"
 }

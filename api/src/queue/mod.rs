@@ -5,6 +5,7 @@
 //! cluster is briefly unreachable — the reliability requirement in the PRD.
 
 pub mod deploy;
+pub mod maintenance;
 
 use crate::{repos::jobs, state::SharedState};
 use std::time::Duration;
@@ -15,8 +16,12 @@ pub const KIND_DEPLOY: &str = "deploy";
 const STALE_LOCK_MINUTES: i32 = 30;
 const MAX_ATTEMPTS: i32 = 3;
 const IDLE_POLL: Duration = Duration::from_secs(2);
+/// Housekeeping is slow-moving; running it often would be pure noise.
+const MAINTENANCE_EVERY: Duration = Duration::from_secs(60 * 60);
 
 pub fn spawn(state: SharedState) {
+    spawn_maintenance(state.clone());
+
     tokio::spawn(async move {
         loop {
             match run_once(&state).await {
@@ -63,4 +68,17 @@ async fn run_once(state: &SharedState) -> crate::error::Result<bool> {
     }
 
     Ok(true)
+}
+
+/// Periodic cleanup, kept out of the job loop so a long prune never delays a
+/// deployment.
+fn spawn_maintenance(state: SharedState) {
+    tokio::spawn(async move {
+        loop {
+            if let Err(error) = maintenance::run(&state).await {
+                tracing::warn!(%error, "maintenance pass failed");
+            }
+            tokio::time::sleep(MAINTENANCE_EVERY).await;
+        }
+    });
 }

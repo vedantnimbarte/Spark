@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO deployments (app_id, commit_sha) VALUES ($1, $2)\n           RETURNING id, app_id, commit_sha, status, image_ref, started_at, finished_at, created_at",
+  "query": "INSERT INTO deployments (app_id, commit_sha) VALUES ($1, $2)\n           RETURNING id, app_id, commit_sha, status, image_ref, rolled_back_from,\n                     started_at, finished_at, created_at",
   "describe": {
     "columns": [
       {
@@ -30,16 +30,21 @@
       },
       {
         "ordinal": 5,
+        "name": "rolled_back_from",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
         "name": "started_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "finished_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "created_at",
         "type_info": "Timestamptz"
       }
@@ -58,8 +63,9 @@
       true,
       true,
       true,
+      true,
       false
     ]
   },
-  "hash": "9ea86714d7f0842e3119d629679148ccb133a3acd2e1962c679b9b9f0526de9d"
+  "hash": "5ab6ae4fa60cccc1edcb49d3dde13f736e5be130332a2168b01123a1476733b1"
 }

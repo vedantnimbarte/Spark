@@ -51,6 +51,15 @@ pub async fn list(
     Ok(Json(svc::list(&state, app_id, user.id, query.limit).await?))
 }
 
+pub async fn rollback(
+    State(state): State<SharedState>,
+    CurrentUser(user): CurrentUser,
+    Path(id): Path<Uuid>,
+) -> Result<(StatusCode, Json<Deployment>)> {
+    let deployment = svc::rollback(&state, id, user.id).await?;
+    Ok((StatusCode::ACCEPTED, Json(deployment)))
+}
+
 pub async fn get(
     State(state): State<SharedState>,
     CurrentUser(user): CurrentUser,
@@ -74,17 +83,18 @@ pub async fn logs(
     svc::get(&state, id, user.id).await?;
 
     let stream = async_stream::stream! {
-        let mut offset = 0_i32;
+        // Tail by sequence rather than byte offset, so each poll reads only
+        // what is new.
+        let mut after_seq = 0_i64;
 
         loop {
-            match repo::logs_from(&state.db, id, offset).await {
-                Ok(Some(chunk)) if !chunk.is_empty() => {
-                    offset += i32::try_from(chunk.len()).unwrap_or(i32::MAX);
-                    for line in chunk.lines() {
-                        yield Ok(Event::default().data(line));
+            match repo::logs_after(&state.db, id, after_seq).await {
+                Ok(lines) => {
+                    for line in lines {
+                        after_seq = line.seq;
+                        yield Ok(Event::default().data(line.line));
                     }
                 }
-                Ok(_) => {}
                 Err(error) => {
                     tracing::warn!(%error, "log stream query failed");
                     break;

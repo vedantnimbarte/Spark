@@ -30,6 +30,11 @@ rules:
   - apiGroups: [batch]
     resources: [jobs]
     verbs: [get, list, watch, create, update, patch, delete]
+  # Live CPU and memory for the dashboard. Optional: without metrics-server
+  # these resources do not exist and usage is reported as unavailable.
+  - apiGroups: [metrics.k8s.io]
+    resources: [pods]
+    verbs: [get, list]
   - apiGroups: [networking.k8s.io]
     resources: [ingresses, networkpolicies]
     verbs: [get, list, watch, create, update, patch, delete]

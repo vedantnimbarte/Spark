@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: api
+      - name: Format
+        run: cargo fmt --check
+        working-directory: api
+      # Queries are checked against the committed .sqlx cache, so CI needs no
+      # database. A stale cache fails here, which is the point.
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+        working-directory: api
+        env:
+          SQLX_OFFLINE: "true"
+      - name: Test
+        run: cargo test
+        working-directory: api
+        env:
+          SQLX_OFFLINE: "true"
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: web
+      - run: npx tsc --noEmit
+        working-directory: web
+      - run: pnpm build
+        working-directory: web

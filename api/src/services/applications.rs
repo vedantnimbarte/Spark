@@ -104,6 +104,8 @@ pub struct UpdateApplication {
     pub cpu_limit: Option<String>,
     #[serde(default)]
     pub memory_limit: Option<String>,
+    #[serde(default)]
+    pub replicas: Option<i32>,
 }
 
 pub async fn update(
@@ -115,6 +117,12 @@ pub async fn update(
     if let Some(port) = patch.container_port {
         validate_port(port)?;
     }
+    if let Some(replicas) = patch.replicas {
+        // 0 is allowed: it stops an application without deleting it.
+        if !(0..=10).contains(&replicas) {
+            return Err(Error::Invalid("replicas must be between 0 and 10".into()));
+        }
+    }
     applications::update(
         db,
         id,
@@ -125,6 +133,7 @@ pub async fn update(
             container_port: patch.container_port,
             cpu_limit: patch.cpu_limit,
             memory_limit: patch.memory_limit,
+            replicas: patch.replicas,
         },
     )
     .await?

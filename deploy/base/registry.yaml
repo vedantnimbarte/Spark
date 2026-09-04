@@ -31,6 +31,11 @@ spec:
       containers:
         - name: registry
           image: registry:2
+          env:
+            # Manifest deletion is off by default. Retention prunes old
+            # deployment images through the v2 API, which needs this.
+            - name: REGISTRY_STORAGE_DELETE_ENABLED
+              value: "true"
           ports:
             - name: registry
               containerPort: 5000

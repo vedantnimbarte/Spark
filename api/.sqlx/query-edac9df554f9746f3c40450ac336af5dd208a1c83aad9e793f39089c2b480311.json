@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE deployments SET logs = logs || $2 WHERE id = $1",
+  "query": "INSERT INTO deployment_log_lines (deployment_id, line) VALUES ($1, $2)",
   "describe": {
     "columns": [],
     "parameters": {
@@ -11,5 +11,5 @@
     },
     "nullable": []
   },
-  "hash": "85cd89f0576922bac3ea15af782eb46c89fb5d454e0d6058dea28ce4ec10c66a"
+  "hash": "edac9df554f9746f3c40450ac336af5dd208a1c83aad9e793f39089c2b480311"
 }

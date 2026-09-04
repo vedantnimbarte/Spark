@@ -24,14 +24,17 @@ kubectl -n spark-system rollout status deploy/registry
 # 3. cert-manager, for automatic TLS
 bash deploy/setup-cert-manager.sh
 
-# 4. Let the node's containerd pull from the in-cluster registry.
+# 4. Optional: live CPU and memory in the dashboard
+bash deploy/setup-metrics-server.sh
+
+# 5. Let the node's containerd pull from the in-cluster registry.
 #    Re-run this after "Reset Kubernetes Cluster" in Docker Desktop.
 bash deploy/setup-node-registry.sh
 
-# 5. Control plane (migrations run at startup)
+# 6. Control plane (migrations run at startup)
 cd api && cp .env.example .env && cargo run
 
-# 6. Dashboard, in a second terminal
+# 7. Dashboard, in a second terminal
 cd web && pnpm install && pnpm dev
 ```
 
@@ -86,6 +89,27 @@ key.
 The API runs as the `spark-controller` ServiceAccount, so it holds the restricted permission set in
 `deploy/base/control-plane-rbac.yaml` rather than a developer's kubeconfig.
 
+## Private repositories
+
+Add a personal access token under an application's Settings. It is kept in a
+Kubernetes Secret of its own (`app-git`), separate from the environment Secret that
+is injected into the running container, so the application can never read its own
+deploy token. The control plane uses it to resolve the branch, and BuildKit
+receives it as a build secret rather than in the clone URL, keeping it out of the
+build log.
+
+HTTPS tokens only; SSH deploy keys are not supported.
+
+## Rolling back
+
+Every deployment records the image it produced, so rolling back redeploys that
+exact image rather than rebuilding the commit — a rebuild could pick up a moved
+base image and produce something different. Pick a previous deployment and press
+Roll back.
+
+Only one deployment per application runs at a time; a second request while one is
+in flight returns 409 rather than racing it.
+
 ## How a deployment works
 
 1. A push webhook, or the Deploy button, records a `deployment` row and enqueues a job.
@@ -129,4 +153,10 @@ Run `cargo sqlx prepare` after changing a query or the schema, or the image buil
   registry the nodes can reach and set the policy back to `Always`.
 - **Registry contents do not survive a cluster reset** unless the PVC does. Set `REGISTRY_URL` and
   `REGISTRY_INSECURE=false` to push to an external registry instead.
-- **No CI pipeline.** `cargo clippy -- -D warnings` and the test suite are run by hand.
+- **Let's Encrypt issuance is configured but unproven** on Docker Desktop.
+- **Login limiting is per-process and in-memory**, so it resets when the control
+  plane restarts and does not span replicas. That matches a single-replica
+  control plane; move it to Postgres before scaling out.
+- **Registry disk is reclaimed in two steps.** Retention deletes old deployment
+  manifests through the registry API, but the blobs are only freed when the
+  registry's own garbage collection runs.

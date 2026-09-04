@@ -43,7 +43,14 @@ pub async fn login(
     jar: CookieJar,
     Json(body): Json<Credentials>,
 ) -> Result<(CookieJar, Json<User>)> {
+    if !state.login_limiter.check(&body.email) {
+        return Err(Error::Invalid(
+            "too many sign-in attempts; wait a few minutes and try again".into(),
+        ));
+    }
+
     let user = svc::authenticate(&state.db, &body.email, &body.password).await?;
+    state.login_limiter.reset(&body.email);
     let token = svc::start_session(&state.db, &user).await?;
     Ok((
         jar.add(session::cookie(token, state.config.cookie_secure)),

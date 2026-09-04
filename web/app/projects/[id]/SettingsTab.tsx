@@ -15,6 +15,8 @@ export function SettingsTab({ app }: { app: Application }) {
   const [port, setPort] = useState(String(app.container_port));
   const [cpu, setCpu] = useState(app.cpu_limit);
   const [memory, setMemory] = useState(app.memory_limit);
+  const [replicas, setReplicas] = useState(String(app.replicas));
+  const [token, setToken] = useState("");
   const [confirm, setConfirm] = useState("");
 
   const webhook = useQuery({
@@ -30,6 +32,7 @@ export function SettingsTab({ app }: { app: Application }) {
         container_port: Number(port),
         cpu_limit: cpu,
         memory_limit: memory,
+        replicas: Number(replicas),
       }),
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: ["app", app.id] }),
@@ -43,7 +46,23 @@ export function SettingsTab({ app }: { app: Application }) {
     },
   });
 
+  const saveToken = useMutation({
+    mutationFn: () => api.setGitCredentials(app.id, token),
+    onSuccess: async () => {
+      setToken("");
+      await queryClient.invalidateQueries({ queryKey: ["app", app.id] });
+    },
+  });
+
+  const clearToken = useMutation({
+    mutationFn: () => api.clearGitCredentials(app.id),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["app", app.id] }),
+  });
+
   const error = save.error instanceof ApiError ? save.error.message : null;
+  const tokenError =
+    saveToken.error instanceof ApiError ? saveToken.error.message : null;
   const origin = typeof window === "undefined" ? "" : window.location.origin;
 
   return (
@@ -100,6 +119,19 @@ export function SettingsTab({ app }: { app: Application }) {
                 className="font-mono"
               />
             </div>
+            <div className="space-y-1.5">
+              <Label>Replicas</Label>
+              <Input
+                type="number"
+                min={0}
+                max={10}
+                value={replicas}
+                onChange={(e) => setReplicas(e.target.value)}
+              />
+              <p className="text-faint text-xs">
+                0 stops the application without deleting it.
+              </p>
+            </div>
           </div>
 
           {error && <ErrorText>{error}</ErrorText>}
@@ -113,6 +145,54 @@ export function SettingsTab({ app }: { app: Application }) {
             </p>
           </div>
         </form>
+      </Card>
+
+      <Card className="space-y-3 p-5">
+        <div>
+          <h2 className="text-sm font-medium">Private repository access</h2>
+          <p className="text-muted mt-1 text-xs">
+            A personal access token with read access. Stored in a Kubernetes
+            Secret separate from your environment variables, so it is never
+            visible to the running application.
+          </p>
+        </div>
+
+        {app.git_credentials_set ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-success text-sm">A token is configured</span>
+            <Button
+              variant="danger"
+              onClick={() => clearToken.mutate()}
+              disabled={clearToken.isPending}
+            >
+              {clearToken.isPending ? "Removing..." : "Remove token"}
+            </Button>
+          </div>
+        ) : (
+          <form
+            className="space-y-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              saveToken.mutate();
+            }}
+          >
+            <Input
+              type="password"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder="ghp_..."
+              className="font-mono"
+            />
+            {tokenError && <ErrorText>{tokenError}</ErrorText>}
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={!token || saveToken.isPending}
+            >
+              {saveToken.isPending ? "Saving..." : "Save token"}
+            </Button>
+          </form>
+        )}
       </Card>
 
       <Card className="space-y-3 p-5">

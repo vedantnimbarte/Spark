@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, owner_id, name, git_repo, git_branch, build_type, dockerfile_path,\n                  container_port, cpu_limit, memory_limit, webhook_secret, created_at\n           FROM applications WHERE id = $1",
+  "query": "UPDATE applications SET\n             git_branch      = COALESCE($3, git_branch),\n             dockerfile_path = COALESCE($4, dockerfile_path),\n             container_port  = COALESCE($5, container_port),\n             cpu_limit       = COALESCE($6, cpu_limit),\n             memory_limit    = COALESCE($7, memory_limit),\n             replicas        = COALESCE($8, replicas)\n           WHERE id = $1 AND owner_id = $2\n           RETURNING id, owner_id, name, git_repo, git_branch, build_type, dockerfile_path,\n                     container_port, cpu_limit, memory_limit, replicas, git_credentials_set,\n                     webhook_secret, created_at",
   "describe": {
     "columns": [
       {
@@ -55,18 +55,35 @@
       },
       {
         "ordinal": 10,
+        "name": "replicas",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 11,
+        "name": "git_credentials_set",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 12,
         "name": "webhook_secret",
         "type_info": "Text"
       },
       {
-        "ordinal": 11,
+        "ordinal": 13,
         "name": "created_at",
         "type_info": "Timestamptz"
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid"
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Int4",
+        "Text",
+        "Text",
+        "Int4"
       ]
     },
     "nullable": [
@@ -81,8 +98,10 @@
       false,
       false,
       false,
+      false,
+      false,
       false
     ]
   },
-  "hash": "c43aceb56da5a6a1b83a1acd0e7277fc89567fcb906fa6d77c346f4b7f67e83d"
+  "hash": "b9348ab1367aea18bb3f9b785bcb4419f132832dfb83aa049d6dcf8c6ee6f490"
 }

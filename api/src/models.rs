@@ -23,6 +23,9 @@ pub struct Application {
     pub container_port: i32,
     pub cpu_limit: String,
     pub memory_limit: String,
+    pub replicas: i32,
+    /// Whether a git credential exists in the application's Kubernetes Secret.
+    pub git_credentials_set: bool,
     /// Never serialised: it is the shared secret a Git provider signs with.
     #[serde(skip)]
     pub webhook_secret: String,
@@ -36,6 +39,8 @@ pub struct Deployment {
     pub commit_sha: String,
     pub status: String,
     pub image_ref: Option<String>,
+    /// Set when this deployment reused an earlier deployment's image.
+    pub rolled_back_from: Option<Uuid>,
     pub started_at: Option<DateTime<Utc>>,
     pub finished_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,

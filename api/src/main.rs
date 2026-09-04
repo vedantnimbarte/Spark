@@ -1,5 +1,7 @@
 use anyhow::{Context, Result};
-use spark_api::{config::Config, k8s::Cluster, queue, router, state::AppState};
+use spark_api::{
+    auth::rate_limit::RateLimiter, config::Config, k8s::Cluster, queue, router, state::AppState,
+};
 use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
@@ -47,6 +49,7 @@ async fn main() -> Result<()> {
         db,
         config,
         cluster,
+        login_limiter: RateLimiter::new(),
     });
 
     queue::spawn(state.clone());

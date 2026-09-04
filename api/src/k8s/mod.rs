@@ -1,5 +1,6 @@
 pub mod manifests;
 pub mod names;
+pub mod quantity;
 
 use crate::error::Result;
 use futures::{AsyncBufReadExt, TryStreamExt};
@@ -111,6 +112,10 @@ pub struct AppStatus {
     pub replicas: i32,
     pub ready_replicas: i32,
     pub restarts: i32,
+    /// Live usage summed across pods. `None` when metrics-server is not
+    /// installed, which is different from zero usage and is shown as such.
+    pub cpu_millicores: Option<i64>,
+    pub memory_bytes: Option<i64>,
     pub pods: Vec<PodStatus>,
 }
 
@@ -215,6 +220,47 @@ impl Cluster {
         Ok(())
     }
 
+    /// Live CPU and memory usage summed over an application's pods.
+    ///
+    /// Returns `None` when metrics-server is absent, so the dashboard can say
+    /// "unavailable" rather than showing a misleading zero.
+    async fn pod_usage(&self, namespace: &str, selector: &str) -> Result<Option<(i64, i64)>> {
+        let gvk = GroupVersionKind::gvk("metrics.k8s.io", "v1beta1", "PodMetrics");
+        let resource = ApiResource::from_gvk(&gvk);
+        let api: Api<DynamicObject> =
+            Api::namespaced_with(self.client.clone(), namespace, &resource);
+
+        let metrics = match api.list(&ListParams::default().labels(selector)).await {
+            Ok(metrics) => metrics,
+            // metrics-server not installed.
+            Err(kube::Error::Api(e)) if e.code == 404 || e.code == 503 => return Ok(None),
+            Err(e) => return Err(e.into()),
+        };
+
+        let mut cpu = 0;
+        let mut memory = 0;
+        for pod in metrics.items {
+            let containers = pod
+                .data
+                .get("containers")
+                .and_then(|c| c.as_array())
+                .cloned()
+                .unwrap_or_default();
+
+            for container in containers {
+                let usage = container.get("usage");
+                if let Some(value) = usage.and_then(|u| u.get("cpu")).and_then(|v| v.as_str()) {
+                    cpu += quantity::cpu_millicores(value).unwrap_or(0);
+                }
+                if let Some(value) = usage.and_then(|u| u.get("memory")).and_then(|v| v.as_str()) {
+                    memory += quantity::memory_bytes(value).unwrap_or(0);
+                }
+            }
+        }
+
+        Ok(Some((cpu, memory)))
+    }
+
     /// Reads the Ready condition of the certificate cert-manager issued for an
     /// application.
     ///
@@ -313,11 +359,15 @@ impl Cluster {
             })
             .collect();
 
+        let usage = self.pod_usage(namespace, &selector).await.unwrap_or(None);
+
         Ok(AppStatus {
             ready: ready_replicas > 0,
             replicas,
             ready_replicas,
             restarts: pods.iter().map(|p| p.restarts).sum(),
+            cpu_millicores: usage.map(|u| u.0),
+            memory_bytes: usage.map(|u| u.1),
             pods,
         })
     }
@@ -367,6 +417,15 @@ impl Cluster {
             ..Default::default()
         };
         self.apply(namespace, &secret).await
+    }
+
+    pub async fn delete_secret(&self, namespace: &str, name: &str) -> Result<()> {
+        let api: Api<Secret> = Api::namespaced(self.client.clone(), namespace);
+        match api.delete(name, &DeleteParams::default()).await {
+            Ok(_) => Ok(()),
+            Err(kube::Error::Api(e)) if e.code == 404 => Ok(()),
+            Err(e) => Err(e.into()),
+        }
     }
 
     /// Rolls pods so a changed Secret is actually picked up: envFrom values are

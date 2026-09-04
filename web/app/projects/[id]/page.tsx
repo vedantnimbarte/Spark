@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, formatBytes, formatCpu } from "@/lib/api";
 import { BranchIcon, ExternalIcon } from "@/components/icons";
 import { Button, Card, StatusBadge } from "@/components/ui";
 import { DeploymentsTab } from "./DeploymentsTab";
@@ -122,6 +122,22 @@ export default function ProjectPage() {
           value={`${health.data?.ready_replicas ?? 0}/${health.data?.replicas ?? 0}`}
         />
         <Stat label="Restarts" value={health.data?.restarts ?? 0} />
+        <Stat
+          label="CPU"
+          value={
+            health.data?.cpu_millicores == null
+              ? "--"
+              : formatCpu(health.data.cpu_millicores)
+          }
+        />
+        <Stat
+          label="Memory"
+          value={
+            health.data?.memory_bytes == null
+              ? "--"
+              : formatBytes(health.data.memory_bytes)
+          }
+        />
         <Stat label="Limits" value={`${app.data.cpu_limit} · ${app.data.memory_limit}`} />
         <Stat
           label="URL"

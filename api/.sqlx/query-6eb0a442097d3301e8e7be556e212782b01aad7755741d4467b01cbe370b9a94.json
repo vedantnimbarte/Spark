@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, owner_id, name, git_repo, git_branch, build_type, dockerfile_path,\n                  container_port, cpu_limit, memory_limit, webhook_secret, created_at\n           FROM applications WHERE owner_id = $1 ORDER BY created_at DESC",
+  "query": "INSERT INTO applications\n             (owner_id, name, git_repo, git_branch, build_type, dockerfile_path,\n              container_port, cpu_limit, memory_limit, webhook_secret)\n           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)\n           RETURNING id, owner_id, name, git_repo, git_branch, build_type, dockerfile_path,\n                     container_port, cpu_limit, memory_limit, replicas, git_credentials_set,\n                     webhook_secret, created_at",
   "describe": {
     "columns": [
       {
@@ -55,18 +55,37 @@
       },
       {
         "ordinal": 10,
+        "name": "replicas",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 11,
+        "name": "git_credentials_set",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 12,
         "name": "webhook_secret",
         "type_info": "Text"
       },
       {
-        "ordinal": 11,
+        "ordinal": 13,
         "name": "created_at",
         "type_info": "Timestamptz"
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid"
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Int4",
+        "Text",
+        "Text",
+        "Text"
       ]
     },
     "nullable": [
@@ -81,8 +100,10 @@
       false,
       false,
       false,
+      false,
+      false,
       false
     ]
   },
-  "hash": "c1225f6efd0c016912fb6b8f4baf79674b91571eee6377c204466e01ad3e3d45"
+  "hash": "6eb0a442097d3301e8e7be556e212782b01aad7755741d4467b01cbe370b9a94"
 }

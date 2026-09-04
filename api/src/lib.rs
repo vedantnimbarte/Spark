@@ -11,7 +11,7 @@ pub mod services;
 pub mod state;
 
 use axum::{
-    routing::{get, post},
+    routing::{get, post, put},
     Router,
 };
 use state::SharedState;
@@ -30,8 +30,16 @@ pub fn router(state: SharedState) -> Router {
         .route("/apps/{id}/deploy", post(handlers::deployments::deploy))
         .route("/apps/{id}/deployments", get(handlers::deployments::list))
         .route("/deployments/{id}", get(handlers::deployments::get))
+        .route(
+            "/deployments/{id}/rollback",
+            post(handlers::deployments::rollback),
+        )
         .route("/deployments/{id}/logs", get(handlers::deployments::logs))
         .route("/apps/{id}/webhook", get(handlers::apps::webhook))
+        .route(
+            "/apps/{id}/git-credentials",
+            put(handlers::apps::set_git_credentials).delete(handlers::apps::clear_git_credentials),
+        )
         .route("/apps/{id}/health", get(handlers::apps::health))
         .route("/webhooks/github/{id}", post(handlers::webhooks::github))
         .route("/webhooks/gitlab/{id}", post(handlers::webhooks::gitlab))

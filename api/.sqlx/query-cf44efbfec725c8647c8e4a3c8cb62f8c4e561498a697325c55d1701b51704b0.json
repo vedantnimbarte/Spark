@@ -1,0 +1,70 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH ranked AS (\n               SELECT id,\n                      row_number() OVER (PARTITION BY app_id ORDER BY created_at DESC) AS rank\n               FROM deployments\n           ),\n           live AS (\n               SELECT DISTINCT ON (app_id) id\n               FROM deployments\n               WHERE status = 'deployed'\n               ORDER BY app_id, created_at DESC\n           )\n           SELECT d.id, d.app_id, d.commit_sha, d.status, d.image_ref, d.rolled_back_from,\n                  d.started_at, d.finished_at, d.created_at\n           FROM deployments d\n           JOIN ranked r ON r.id = d.id\n           WHERE r.rank > $1\n             AND d.id NOT IN (SELECT id FROM live)\n             AND d.status IN ('deployed', 'failed')",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "app_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "commit_sha",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "image_ref",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "rolled_back_from",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "started_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "finished_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "cf44efbfec725c8647c8e4a3c8cb62f8c4e561498a697325c55d1701b51704b0"
+}

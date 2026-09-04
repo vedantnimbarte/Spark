@@ -42,3 +42,11 @@ pub async fn delete(db: &PgPool, token_hash: &str) -> Result<()> {
         .await?;
     Ok(())
 }
+
+/// Expired rows are never read, only accumulated; nothing else removes them.
+pub async fn delete_expired(db: &PgPool) -> Result<u64> {
+    let result = sqlx::query!("DELETE FROM sessions WHERE expires_at < now()")
+        .execute(db)
+        .await?;
+    Ok(result.rows_affected())
+}
